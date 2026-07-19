@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <unistd.h>
 
 #define HTTP_SUCCESS "HTTP/1.1 200 OK\r\n\r\n Welcome!!\n"
 #define HTTP_FORBIDDEN "HTTP/1.1 400 Bad Request\r\n\r\n"
@@ -12,7 +13,8 @@ typedef enum ErrorCodesHttpRequest
 {
 	RUNTIME_ERROR = -1,
 	INVALID_REQUEST_LINE = -2,
-	REQUEST_NOT_VALID_GET_HAS_BODY = -3
+	REQUEST_NOT_VALID_GET_HAS_BODY = -3,
+	HAS_NO_CONTENT_LENGTH = -4
 } ErrorCodesHttpRequest;
 
 typedef struct Header
@@ -30,15 +32,18 @@ typedef struct Request
 	Header headers[100];
 	int header_count;
 	int is_valid;
+
+	char *body;
+
 } Request;
 
-Header *GetHeader(Request request, char *name_of_header)
+Header *GetHeader(Request *request, char *name_of_header)
 {
-	for (int i = 0; i < request.header_count; i++)
+	for (int i = 0; i < request->header_count; i++)
 	{
-		if (strcmp(request.headers[i].name, name_of_header) == 0)
+		if (strcmp(request->headers[i].name, name_of_header) == 0)
 		{
-			return &request.headers[i];
+			return &request->headers[i];
 		}
 	}
 	return NULL;
@@ -142,32 +147,52 @@ Request Parse_Http_Request(char *buffer)
 	return request;
 }
 
-void Print_Headers(Request request)
+void Print_Headers(Request *request)
 {
-	if (request.header_count > 0)
+	if (request->header_count > 0)
 	{
 		printf("----------HEADERS START----------\n");
-		for (int i = 0; i < request.header_count; i++)
+		for (int i = 0; i < request->header_count; i++)
 		{
-			printf("Name: %s\nValue: %s\n", request.headers[i].name, request.headers[i].value);
+			printf("Name: %s\nValue: %s\n", request->headers[i].name, request->headers[i].value);
 		}
 		printf("----------HEADERS FINISH----------\n");
 	}
 }
 
-int CheckIfHttpRequestIsValid(Request request)
+int GetContentLength(Request *request, Header *header, char *header_name)
 {
+	int parsed_to_int = -2;
+	if (request == NULL)
+		return parsed_to_int;
+	if (header == NULL && header_name == NULL)
+		return parsed_to_int;
 
-	if (strcmp(request.method, "GET") == 0)
+	char *endptr;
+
+	if (header != NULL)
 	{
-		return ValidateGetHttpRequest(request);
+		parsed_to_int = strtol(header->value, &endptr, 0);
 	}
-	return 1;
+	else if (header_name != NULL && strcmp(header_name, "Content-Length") == 0)
+	{
+		Header *header = GetHeader(request, header_name);
+
+		if (header == NULL)
+		{
+			parsed_to_int = HAS_NO_CONTENT_LENGTH;
+			return parsed_to_int;
+		}
+		parsed_to_int = strtol(header->value, &endptr, 0);
+	}
+
+	return parsed_to_int;
 }
 
-int ValidateGetHttpRequest(Request request)
+int ValidateGetHttpRequest(Request *request)
 {
-	if (GetHeader(request, "Content-Length") != NULL && GetHeader(request, "Content-Type") != NULL)
+	request->body = NULL;
+	if (GetContentLength(request, NULL, "Content-Length") != HAS_NO_CONTENT_LENGTH)
 	{
 		{
 			return REQUEST_NOT_VALID_GET_HAS_BODY;
@@ -175,6 +200,34 @@ int ValidateGetHttpRequest(Request request)
 	}
 	return 1;
 }
+
+int ValidatePostHttpRequest(Request *request)
+{
+	int content_length = GetContentLength(request, NULL, "Content-Length");
+
+	if (content_length < 0)
+	{
+		return HAS_NO_CONTENT_LENGTH;
+	}
+
+	memset(&request->body, 0, sizeof(content_length));
+	return 1;
+}
+
+int CheckIfHttpRequestIsValid(Request *request)
+{
+
+	if (strcmp(request->method, "GET") == 0)
+	{
+		return ValidateGetHttpRequest(request);
+	}
+	else if (strcmp(request->method, "POST") == 0)
+	{
+		return ValidatePostHttpRequest(request);
+	}
+	return 1;
+}
+
 int handle_client(int client_socket, struct sockaddr_in client_address)
 {
 
@@ -217,7 +270,7 @@ int handle_client(int client_socket, struct sockaddr_in client_address)
 
 		printf("Request object\nMethod:%s \nPath:%s \nVersion:%s \n\n", request.method, request.path, request.version);
 
-		int isHttpRequestValid = CheckIfHttpRequestIsValid(request);
+		int isHttpRequestValid = CheckIfHttpRequestIsValid(&request);
 		if (isHttpRequestValid < 0)
 		{
 			if (isHttpRequestValid == REQUEST_NOT_VALID_GET_HAS_BODY)
@@ -229,7 +282,7 @@ int handle_client(int client_socket, struct sockaddr_in client_address)
 			goto close_handle_client_message;
 		}
 
-		Print_Headers(request);
+		Print_Headers(&request);
 
 		// printf("\n\n\n\nTHE ACTUAL REQUEST BUFFER\n");
 		// printf("Request:\n%s", buffer);
