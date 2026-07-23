@@ -6,4 +6,4 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-Request Parse_Http_Request(char *buffer);
+Request Parse_Http_Request(char *buffer, size_t bytes_received);

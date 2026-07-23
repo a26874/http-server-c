@@ -10,3 +10,4 @@ void IsRequestLineValid(Request *request, char *line);
 int ValidateGetHttpRequest(Request *request);
 int ValidatePostHttpRequest(Request *request);
 int CheckIfHttpRequestIsValid(Request *request);
+int HasRepeatedHostHeader(Request *request);

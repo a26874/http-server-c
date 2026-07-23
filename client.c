@@ -38,7 +38,7 @@ int handle_client(int client_socket, struct sockaddr_in client_address)
         }
 
         strcpy(parse_buffer, buffer);
-        Request request = Parse_Http_Request(parse_buffer);
+        Request request = Parse_Http_Request(parse_buffer, n);
 
         if (request.is_valid == 0)
         {
@@ -48,24 +48,33 @@ int handle_client(int client_socket, struct sockaddr_in client_address)
             goto close_handle_client_message;
         }
 
-        printf("Request object\nMethod:%s \nPath:%s \nVersion:%s \n\n", request.method, request.path, request.version);
-
         int isHttpRequestValid = CheckIfHttpRequestIsValid(&request);
         if (isHttpRequestValid < 0)
         {
-            if (isHttpRequestValid == REQUEST_NOT_VALID_GET_HAS_BODY)
+            switch (isHttpRequestValid)
             {
+            case HAS_NO_HEADER_HOST:
                 (void)write(client_socket, HTTP_FORBIDDEN, strlen(HTTP_FORBIDDEN));
-                printf("A GET Method shouldnt contain a body\n");
+                printf("\nRequest must contain a host\n");
+                break;
+            case HAS_DUPLICATED_HOST:
+                (void)write(client_socket, HTTP_FORBIDDEN, strlen(HTTP_FORBIDDEN));
+                printf("\nRequest has duplicated hosts\n");
+                break;
+            case INVALID_CONTENT_LENGTH:
+                (void)write(client_socket, HTTP_FORBIDDEN, strlen(HTTP_FORBIDDEN));
+                printf("\nRequest has invalid content length\n");
+                break;
+            default:
+                (void)write(client_socket, HTTP_FORBIDDEN, strlen(HTTP_FORBIDDEN));
+                printf("\nUnknown error!\n");
+                break;
             }
 
             goto close_handle_client_message;
         }
 
         Print_Headers_And_Body(&request);
-
-        // printf("\n\n\n\nTHE ACTUAL REQUEST BUFFER\n");
-        // printf("Request:\n%s", buffer);
 
         (void)write(client_socket, HTTP_SUCCESS, strlen(HTTP_SUCCESS));
         free(request.body);

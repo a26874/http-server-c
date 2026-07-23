@@ -56,6 +56,8 @@ int CreateHeader(char *line, Header *header, Request *request)
     strcpy(header->name, line_copy);
     strcpy(header->value, get_value + 1);
 
+    header->value[strlen(header->value)] = '\0';
+
     if (strcmp(header->name, "Content-Length") == 0)
     {
         char *endptr;
@@ -71,6 +73,8 @@ int CreateHeader(char *line, Header *header, Request *request)
 
 void Print_Headers_And_Body(Request *request)
 {
+    printf("Request object\nMethod:%s \nPath:%s \nVersion:%s \n\n", request->method, request->path, request->version);
+
     if (request->header_count > 0)
     {
         printf("----------HEADERS START----------\n");

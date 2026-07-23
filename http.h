@@ -6,8 +6,10 @@ typedef enum ErrorCodesHttpRequest
 {
 	RUNTIME_ERROR = -1,
 	INVALID_REQUEST_LINE = -2,
-	REQUEST_NOT_VALID_GET_HAS_BODY = -3,
-	HAS_NO_CONTENT_LENGTH = -4
+	HAS_NO_CONTENT_LENGTH = -3,
+	HAS_NO_HEADER_HOST = -4,
+	HAS_DUPLICATED_HOST = -5,
+	INVALID_CONTENT_LENGTH = -6
 } ErrorCodesHttpRequest;
 
 typedef struct Header
